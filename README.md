@@ -23,15 +23,15 @@
 
 ## 1. Visao Geral
 
-O script `Monitor-TodosProcessos.ps1` realiza o monitoramento continuo de todos os processos em execucao no Windows, coletando métricas de desempenho em intervalos regulares e persistindo os dados em arquivos CSV de forma incremental - garantindo que nenhuma informacao seja perdida mesmo em cenarios de instabilidade do servidor.
+O script `Monitor-TodosProcessos.ps1` realiza o monitoramento continuo de todos os processos em execução no Windows, coletando métricas de desempenho em intervalos regulares e persistindo os dados em arquivos CSV de forma incremental - garantindo que nenhuma informação seja perdida mesmo em cenários de instabilidade.
 
-**Casos de uso tipicos:**
+**Casos de uso Tipicos:**
 
-- Diagnostico de lentidao em servidores de ERP e aplicacoes criticas
-- Identificacao de processos com consumo anormal de CPU ou memoria
-- Investigacao do impacto de agentes de seguranca (ex: Trend Micro, CrowdStrike) sobre a carga do sistema
-- Coleta de evidencias para analise de incidentes de performance
-- Monitoramento de longa duracao em servidores com acesso remoto instavel
+- Diagnostico de lentidão em servidores de ERP e aplicações críticas;
+- Identificação de processos com consumo anormal de CPU ou memória;
+- Investigação do impacto de agentes de segurança (ex: Trend Micro, Trellix, CrowdStrike, etc) sobre a carga do sistema;
+- Coleta de evidências para analise de incidentes;
+- Monitoramento de longa duração em servidores com acesso remoto instável.
 
 > **Nota:** O script nao requer instalacao de modulos externos. Utiliza apenas cmdlets nativos do PowerShell e consultas WMI disponiveis em qualquer Windows Server 2012 R2 ou superior.
 
@@ -43,51 +43,51 @@ O script `Monitor-TodosProcessos.ps1` realiza o monitoramento continuo de todos 
 
 A cada intervalo definido pelo parametro `-IntervalSeconds`, o script executa um ciclo completo:
 
-1. Realiza duas consultas WMI em **batch** - uma para I/O de disco e outra para contagem de handles - evitando chamadas individuais por processo
-2. Enumera todos os processos ativos via `Get-Process`
-3. Calcula o **CPU%** de cada processo usando o delta de `TotalProcessorTime` entre dois ciclos consecutivos, normalizado pelo numero de nucleos logicos do servidor
-4. Consolida as metricas em um objeto estruturado por processo
-5. Avalia os thresholds de alerta configurados
+1. Realiza duas consultas WMI em **batch** - uma para I/O de disco e outra para contagem de handles - evitando chamadas individuais por processo;
+2. Enumera todos os processos ativos via `Get-Process`;
+3. Calcula o **CPU%** de cada processo usando o delta de `TotalProcessorTime` entre dois ciclos consecutivos, normalizado pelo numero de núcleos lógicos do servidor;
+4. Consolida as métricas em um objeto estruturado por processo;
+5. Avalia os thresholds de alerta configurados.
 
 ### 2.2 Flush Incremental para Disco
 
-Os dados coletados sao mantidos em duas listas em memoria:
+Os dados coletados são mantidos em duas listas em memória:
 
-- **`Samples`** - acumula todos os registros do inicio ao fim (usada para o relatorio final)
-- **`PendingFlush`** - acumula apenas os registros ainda nao gravados em disco
+- **`Samples`** - acumula todos os registros do início ao fim (usada para o relatório final);
+- **`PendingFlush`** - acumula apenas os registros ainda não gravados em disco.
 
-A cada `FlushIntervalSeconds` segundos, a funcao `Flush-ToCsv` grava os registros pendentes no CSV usando **modo append**, sem reescrever o arquivo inteiro. O primeiro flush cria o arquivo com cabecalho; os seguintes apenas adicionam linhas.
+A cada `FlushIntervalSeconds` segundos, a função `Flush-ToCsv` grava os registros pendentes no CSV usando **modo append**, sem reescrever o arquivo inteiro. O primeiro flush cria o arquivo com cabeçalho; os seguintes apenas adicionam linhas.
 
-> **Tolerancia a falhas:** Mesmo que o servidor trave ou fique inacessivel antes do encerramento formal do script, os dados de todos os ciclos anteriores ao ultimo flush ja estao persistidos em disco e podem ser recuperados.
+> **Tolerância a falhas:** Mesmo que o servidor trave ou fique inacessível antes do encerramento formal do script, os dados de todos os ciclos anteriores ao último flush já estão persistidos em disco e podem ser recuperados.
 
 ### 2.3 Mecanismo de Encerramento
 
-O script monitora continuamente a existencia de um **arquivo sentinela** (`STOP_MONITOR.txt`) no diretorio de saida. Quando o arquivo e detectado, o loop encerra de forma controlada e o relatorio final e gerado.
+O script monitora continuamente a existencia de um **arquivo sentinela** (`STOP_MONITOR.txt`) no diretorio de saída. Quando o arquivo e detectado, o loop encerra de forma controlada e o relatório final e gerado.
 
-Este mecanismo foi adotado porque metodos tradicionais (`Ctrl+C`, `CancelKeyPress`, `Register-EngineEvent`) se comportam de forma inconsistente dependendo do host do PowerShell utilizado (Windows Terminal, conhost.exe, sessoes SSH, ISE), podendo encerrar o processo antes da gravacao dos arquivos CSV.
+Este mecanismo foi adotado porque metodos tradicionais (`Ctrl+C`, `CancelKeyPress`, `Register-EngineEvent`) se comportam de forma inconsistente dependendo do host do PowerShell utilizado (Windows Terminal, conhost.exe, sessoes SSH, ISE), podendo encerrar o processo antes da gravção dos arquivos CSV.
 
 ---
 
 ## 3. Parametros
 
-| Parametro | Tipo | Padrao | Descricao |
+| Parametro | Tipo | Padrao | Descrição |
 |---|---|---|---|
-| `-IntervalSeconds` | Int | `30` | Intervalo em segundos entre cada ciclo de coleta de metricas |
-| `-FlushIntervalSeconds` | Int | `60` | Intervalo em segundos entre cada gravacao incremental no CSV. Nunca sera menor que `IntervalSeconds` |
-| `-OutputDir` | String | `C:\Temp` | Diretorio onde os arquivos CSV serao gravados. Criado automaticamente se nao existir |
+| `-IntervalSeconds` | Int | `30` | Intervalo em segundos entre cada ciclo de coleta de métricas |
+| `-FlushIntervalSeconds` | Int | `60` | Intervalo em segundos entre cada gravação incremental no CSV. Nunca será menor que `IntervalSeconds` |
+| `-OutputDir` | String | `C:\temp` | Diretório onde os arquivos CSV serão gravados. Criado automaticamente se não existir |
 | `-TopAlertCPU` | Double | `50.0` | Percentual de CPU acima do qual o registro e marcado como `ALERTA` no campo `Alerta` do CSV |
-| `-TopAlertMemMB` | Double | `1024.0` | Memoria WorkingSet em MB acima do qual o registro e marcado como `ALERTA` no campo `Alerta` do CSV |
-| `-TopConsoleRows` | Int | `10` | Quantidade de processos exibidos no console por ciclo, ordenados por CPU% decrescente. **Nao afeta o CSV** |
+| `-TopAlertMemMB` | Double | `1024.0` | Memória WorkingSet em MB acima do qual o registro e marcado como `ALERTA` no campo `Alerta` do CSV |
+| `-TopConsoleRows` | Int | `10` | Quantidade de processos exibidos no console por ciclo, ordenados por CPU% decrescente. **Não afeta na geração do CSV, apenas para limitar a saída via terminal [TTY]** |
 
 > **Nota sobre FlushIntervalSeconds:** Se um valor menor que `IntervalSeconds` for informado, o script ajusta automaticamente `FlushIntervalSeconds` para ser igual a `IntervalSeconds`, garantindo que pelo menos um ciclo seja gravado por flush.
 
 ---
 
-## 4. Execucao
+## 4. Execução
 
-### 4.1 Preparacao
+### 4.1 Preparação
 
-Abrir o PowerShell como **Administrador** e, se necessario, liberar a politica de execucao de scripts:
+Abrir o PowerShell como **Administrador** e, se necessario, liberar a política de execução de scripts:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
@@ -95,11 +95,11 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 ### 4.2 Exemplos de Uso
 
-**Execucao com parametros padrao**
+**Execução com parâmetros padrão**
 ```powershell
 .\Monitor-TodosProcessos.ps1
 ```
-Coleta a cada 30s, flush a cada 60s, alertas em CPU >= 50% ou Memoria >= 1024 MB, exibe 10 processos no console, salva em `C:\Temp\`.
+Coleta a cada 30s, flush a cada 60s, alertas em CPU >= 50% ou Memória >= 1024 MB, exibe 10 processos no console, salva em `C:\temp\`.
 
 ---
 
@@ -107,7 +107,7 @@ Coleta a cada 30s, flush a cada 60s, alertas em CPU >= 50% ou Memoria >= 1024 MB
 ```powershell
 .\Monitor-TodosProcessos.ps1 -IntervalSeconds 15 -FlushIntervalSeconds 30
 ```
-Indicado para investigacoes ativas durante incidentes. Gera mais dados mas captura picos de curta duracao.
+Indicado para investigações ativas durante incidentes. Gera mais dados mas captura picos de curta duração.
 
 ---
 
